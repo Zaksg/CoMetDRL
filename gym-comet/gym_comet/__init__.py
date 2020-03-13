@@ -1,6 +1,6 @@
 from gym.envs.registration import register
 
 register(
-    id='cotraining-v0',
+    id='comet-v0',
     entry_point='gym_comet.envs:CoMetEnv',
 )

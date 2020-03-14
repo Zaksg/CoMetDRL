@@ -39,7 +39,7 @@ def loadBatchMetaData(batch_meta_path):
 
             '''get only the features with instance pos number'''
             data_instance = batches_meta_data_full_df[batches_meta_data_full_df['meta_feature_name'].apply(
-                lambda x: x.startswith('batchDistanceBatchAucDifferenceFromAvgPartition_'))]
+                lambda x: x.startswith('batchDistanceFromAvgPartition_'))]
             data_instance['instance_number'] = data_instance.groupby(['exp_id', 'exp_iteration', 'batch_id'])[
                 'att_id'].rank(ascending=False)
             '''get all the features without instance pos number'''

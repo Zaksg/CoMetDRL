@@ -16,14 +16,17 @@ from os.path import isfile, join
 general_folder = '/data/home/zaksg/co-train/cotrain-v2/'
 
 
-'''
-    Return the env, states and rewards based on the meta-features
-    env = scoreDist + dataset meta-features
-    states = batch + instances meta-features
-    rewards = AUC difference (available in the batch meta-features) 
-'''
 def meta_features_process(modelFiles, file_prefix, iteration, dataset):
-    # dataset_meta_features_folder = r'C:\Users\guyz\Documents\CoTrainingVerticalEnsemble - gilad\CoTrainingVerticalEnsemble\out\artifacts\CoTrainingVerticalEnsembleV2_2_jar'
+    """
+    :param modelFiles: folder of the meta-features
+    :param file_prefix: the exp id and other file's prefix
+    :param iteration:
+    :param dataset: dataset name
+    :return: the env, states and rewards based on the meta-features:
+        env = scoreDist + dataset meta-features
+        states = batch + instances meta-features
+        rewards = AUC after add the batch
+    """
     dataset_meta_features_folder = r'C:\Users\guyz\Documents\CoTrainingVerticalEnsemble\CoMetDRL'
 
     '''states'''
@@ -34,7 +37,7 @@ def meta_features_process(modelFiles, file_prefix, iteration, dataset):
     try:
         _state = pd.merge(batch_meta_features, instance_meta_features, how='left',
                           on=['exp_id', 'exp_iteration', 'batch_id'], left_index=True)
-        del _state['BatchAucDifference']
+        del _state['afterBatchAuc']
     except Exception:
         print("fail to merge - state")
 
@@ -49,13 +52,20 @@ def meta_features_process(modelFiles, file_prefix, iteration, dataset):
         print("fail to merge - env")
 
     '''rewards'''
-    _rewards = batch_meta_features["afterBatchAuc"]
+    _rewards = batch_meta_features['afterBatchAuc']
     # _rewards = 0
 
     return _env, _state, _rewards
 
 
 def set_test_auc(dataset_arff, modelFiles, file_prefix):
+    """
+
+    :param dataset_arff: dataset arff file
+    :param modelFiles: folder of the meta-features
+    :param file_prefix: the exp id and other file's prefix
+    :return: write auc scores to a csv file
+    """
     auc_df = pd.DataFrame()
     auc_files = [f for f in listdir(modelFiles) if isfile(join(modelFiles, f))
                  and '_AUC_measures' in f and file_prefix in f]
@@ -64,13 +74,13 @@ def set_test_auc(dataset_arff, modelFiles, file_prefix):
         auc_df = pd.concat([auc_df, temp_auc], ignore_index=True)
     auc_df.to_csv('{}{}_exp_full_auc.csv'.format(modelFiles, file_prefix))
 
+
 if __name__ == "__main__":
-    '''
+    """
         Step 1: send java code the dataset (arff file) and file prefix
         Step 2: for 20 iteration - process the meta features and select the batch to add
             The java code provides objects of the dataset, the environment, the possible steps and the reward 
-    '''
-
+    """
     NUM_ITERATIONS = 20
     EPSILON = 0.05
     MAX_CANDIDATES = 1296
@@ -98,7 +108,8 @@ if __name__ == "__main__":
                 selected_batch_id = 1
 
         '''change env and get possible steps'''
-        subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "iteration", file_prefix, str(selected_batch_id), str(iteration), str(exp_id)])
+        subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "iteration",
+                         file_prefix, str(selected_batch_id), str(iteration), str(exp_id)])
 
         '''Process meta features'''
         env, states, rewards = meta_features_process(modelFiles, file_prefix, iteration, dataset_arff)

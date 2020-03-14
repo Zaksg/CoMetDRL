@@ -19,6 +19,7 @@ class CoMetEnv(gym.Env):
 
         # Actions
         # self.action_space = spaces.Box()
+        self.action_space = spaces.Discrete(1296)
 
         # 1296 batches and 2294 meta-features per batch
         self.observation_space = spaces.Box(

@@ -39,7 +39,7 @@ def loadBatchMetaData(batch_meta_path):
 
             '''get only the features with instance pos number'''
             data_instance = batches_meta_data_full_df[batches_meta_data_full_df['meta_feature_name'].apply(
-                lambda x: x.startswith('batchDistanceFromAvgPartition_'))]
+                lambda x: x.startswith('batchDistanceBatchAucDifferenceFromAvgPartition_'))]
             data_instance['instance_number'] = data_instance.groupby(['exp_id', 'exp_iteration', 'batch_id'])[
                 'att_id'].rank(ascending=False)
             '''get all the features without instance pos number'''
@@ -64,14 +64,15 @@ def loadBatchMetaData(batch_meta_path):
             batches_meta_data_full_pivot = batches_meta_data_full_pivot.reset_index()
             return batches_meta_data_full_df, batches_meta_data_full_pivot
 
-        batches_meta_data_full_df, batches_meta_data_final = loadDataAndPivot \
-            (filePath=batch_meta_path
-             , colNames=''
-             , pivotIndex=batch_meta_data_pivot_index
-             , colNames_pivot_instance=df_instance_data_new_columns
-             , isSaveCSV=False)
+        batches_meta_data_full_df, batches_meta_data_final = loadDataAndPivot(
+            filePath=batch_meta_path, colNames=''
+            , pivotIndex=batch_meta_data_pivot_index
+            , colNames_pivot_instance=df_instance_data_new_columns, isSaveCSV=False)
+
     except Exception as e:
         print('failed to batch meta features')
+        print(traceback.format_exc())
+        print(str(e))
         '''
         with open('{}_batch_meta_features_bugs.txt'.format(general_folder), 'a') as f:
             f.write(str(e))
@@ -215,7 +216,7 @@ def createMetaFeatureTables(dataset_name, instance_meta_path, batch_meta_path, s
         # print("forth merge complete")
     except Exception:
         print("fail to merge - forth")
-    forth_merge = forth_merge.drop(['dataset'], axis=1)
+    forth_merge = forth_merge.drop(['dataset'], axis=1).fillna(-1.0)
     return forth_merge
 
 
@@ -277,34 +278,6 @@ def runLoadedModel(meta_features_current_iteration, model, model_type):
     return selected_batch
 
 
-'''
-def runLoadedModel(meta_features_current_iteration, model, model_type, iteration, top_batch_selection):
-    if model_type=='ranking':
-        pred = model.predict(meta_features_current_iteration)
-    else:
-        meta_features_current_iteration = meta_features_current_iteration.fillna(-1.0)
-        pred = model.predict_proba(meta_features_current_iteration)[:, 1]
-    ranked_batch = meta_features_current_iteration[['exp_id', 'exp_iteration', 'batch_id']]
-    ranked_batch['rank'] = pred
-    # max_score = pred.max()
-    top_ranked_batches = ranked_batch.sort_values(by=['rank'], ascending=False)
-    if -1 in top_ranked_batches[['batch_id']].values:
-        selected_batch_curr = top_ranked_batches[top_ranked_batches['batch_id'] == -1]
-    else:
-
-        # top_ranked_batches = ranked_batch[ranked_batch['rank'] == max_score]
-        # selected_batch_curr = top_ranked_batches.sample(1)
-        # selected_batch_curr = top_ranked_batches[top_ranked_batches['rank'] > top_ranked_batches['rank'].max()*(0.99 - 0.01*iteration)]
-
-        if top_batch_selection < 1:
-            selected_batch_curr = top_ranked_batches[top_ranked_batches['rank'] > top_ranked_batches['rank'].max()*0.95]
-        else:
-            selected_batch_curr = top_ranked_batches.head(top_batch_selection)
-        selected_batch_curr = ','.join(selected_batch_curr['batch_id'].astype('str'))
-
-    return selected_batch_curr
-'''
-
 if __name__ == "__main__":
     org_dist_list = [
         "ailerons.arff"
@@ -333,15 +306,20 @@ if __name__ == "__main__":
         , "spambase.arff"
         , "wind.arff"]  # didn't work: "kc2.arff"
     try:
-        # 'classification' / 'ranking'
         model = 'classification'
-        # model = 'ranking'
-        # model = 'regression'
+        ''' test files '''
+        test_folder = r"C:\Users\guyz\Documents\CoTrainingVerticalEnsemble\CoMetDRL\model_file_testing"
+        dataset_name = "german_credit.arff"
+        instance_meta_path = r"{}\171130_german_credit_0_Instances_Meta_Data.csv".format(test_folder)
+        batch_meta_path = r"{}\171130_german_credit_0_Batches_Meta_Data.csv".format(test_folder)
+        scoredist_meta_path = r"{}\171130_german_credit_0_Score_Distribution_Meta_Data.csv".format(test_folder)
 
+        '''
         dataset_name = getDatasetName(sys.argv[1])
         instance_meta_path = sys.argv[2]
         batch_meta_path = sys.argv[3]
         scoredist_meta_path = sys.argv[4]
+        '''
 
         if dataset_name not in org_dist_list:
             dataset_name = "space_ga.arff"
@@ -354,8 +332,8 @@ if __name__ == "__main__":
             meta_features_current_iteration = fixClassificationValues(meta_features_current_iteration
                                                                       , dataset_name, models_folder_path)
         else:
-            # folder_path = 'C:/Users/guyz/Documents/CoTrainingVerticalEnsemble/meta_model'
-            folder_path = '/data/home/zaksg/co-train/cotrain-v2/meta-features'
+            folder_path = 'C:/Users/guyz/Documents/CoTrainingVerticalEnsemble/meta_model'
+            # folder_path = '/data/home/zaksg/co-train/cotrain-v2/meta-features'
             loaded_model = loadClassifictaionModel(dataset_name, folder_path)
             meta_features_current_iteration = fixClassificationValues(meta_features_current_iteration
                                                                       , dataset_name, folder_path)

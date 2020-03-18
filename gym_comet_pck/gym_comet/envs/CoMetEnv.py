@@ -4,6 +4,7 @@ import gym
 from gym import spaces
 import pandas as pd
 import numpy as np
+import meta_model_for_java_csv_v2 as meta_model
 
 MAX_AUC_SCORE = 1
 
@@ -21,9 +22,9 @@ class CoMetEnv(gym.Env):
         # self.action_space = spaces.Box()
         self.action_space = spaces.Discrete(1296)
 
-        # 1296 batches and 2294 meta-features per batch
+        # 1296 batches and X meta-features per batch
         self.observation_space = spaces.Box(
-            low=0, high=1, shape=(1296, 2294), dtype=np.float16)
+            low=0, high=1, shape=(1296, len(self.df.columns)), dtype=np.float16)
 
     def _next_observation(self):
         frame = np.array([
@@ -35,6 +36,9 @@ class CoMetEnv(gym.Env):
         ]], axis=0)
 
         return obs
+
+    def set_df(self, new_df):
+        self.df = new_df
 
     def _take_action(self, action):
         pass

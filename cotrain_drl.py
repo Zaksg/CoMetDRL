@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import time
 import sys
 import traceback
@@ -7,6 +8,12 @@ import subprocess
 import meta_model_for_java_csv_v2 as meta_model
 from os import listdir
 from os.path import isfile, join
+from stable_baselines.common.policies import MlpPolicy
+from stable_baselines.common.vec_env import DummyVecEnv
+from stable_baselines import PPO2
+import gym
+
+from gym_comet_pck.gym_comet.envs.CoMetEnv import CoMetEnv
 
 # import trfl
 # import tensorflow as tf
@@ -51,11 +58,16 @@ def meta_features_process(modelFiles, file_prefix, iteration, dataset):
     except Exception:
         print("fail to merge - env")
 
+    '''all meta-features'''
+    meta_features = pd.merge(_state, _env, how='left',
+                           on=['exp_id', 'exp_iteration']
+                           , left_index=True)
+
     '''rewards'''
-    _rewards = batch_meta_features['afterBatchAuc']
+    _rewards = batch_meta_features[['batch_id', 'afterBatchAuc']]
     # _rewards = 0
 
-    return _env, _state, _rewards
+    return _env, _state, _rewards, meta_features
 
 
 def set_test_auc(dataset_arff, modelFiles, file_prefix):
@@ -75,12 +87,34 @@ def set_test_auc(dataset_arff, modelFiles, file_prefix):
     auc_df.to_csv('{}{}_exp_full_auc.csv'.format(modelFiles, file_prefix))
 
 
-if __name__ == "__main__":
-    """
-        Step 1: send java code the dataset (arff file) and file prefix
-        Step 2: for 20 iteration - process the meta features and select the batch to add
-            The java code provides objects of the dataset, the environment, the possible steps and the reward 
-    """
+def drl_run():
+    NUM_ITERATIONS = 20
+    ''' Files '''
+    # modelFiles = '/data/home/zaksg/co-train/cotrain-v2/model-files/'
+    # modelFiles = '/Users/guyz/Documents/CoTrainingVerticalEnsemble - gilad/model files/'
+    modelFiles = r"C:\Users\guyz\Documents\CoTrainingVerticalEnsemble\meta_model\model_file_testing"
+
+    '''step 1: init'''
+    dataset_arff = "german_credit.arff"
+    exp_id = int(round(time.time() % 1000000, 0))
+    file_prefix = str(exp_id) + "_" + dataset_arff[:-5] + "_"
+    subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "init", dataset_arff, file_prefix])
+    subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "iteration",
+                     file_prefix, str(-2), str(0), str(exp_id)])
+    score_ds_f, instance_batch_f, rewards, meta_f = meta_features_process(modelFiles, file_prefix, 0, dataset_arff)
+
+    ''' RL '''
+    env = DummyVecEnv([lambda: CoMetEnv(meta_f)])
+    for iteration in range(1, NUM_ITERATIONS):
+        print(iteration)
+
+
+def run_cotrain_iterations():
+    '''
+            Step 1: send java code the dataset (arff file) and file prefix
+            Step 2: for 20 iteration - process the meta features and select the batch to add
+                The java code provides objects of the dataset, the environment, the possible steps and the reward
+        '''
     NUM_ITERATIONS = 20
     EPSILON = 0.05
     MAX_CANDIDATES = 1296
@@ -112,8 +146,14 @@ if __name__ == "__main__":
                          file_prefix, str(selected_batch_id), str(iteration), str(exp_id)])
 
         '''Process meta features'''
-        env, states, rewards = meta_features_process(modelFiles, file_prefix, iteration, dataset_arff)
+        env, states, rewards, meta_features = meta_features_process(modelFiles, file_prefix, iteration, dataset_arff)
         print('Finish iteration {} on dataset {}'.format(iteration, dataset_arff))
 
     '''step 3: co-train evaluation'''
     set_test_auc(dataset_arff, modelFiles, file_prefix)
+
+
+
+if __name__ == "__main__":
+    drl_run()
+    # run_cotrain_iterations()

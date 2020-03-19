@@ -32,7 +32,6 @@ class CoMetEnv(gym.Env):
         # self.action_space = spaces.Discrete(1)
 
         # 1296 batches and 2233 meta-features per batch
-        # high = np.array([np.inf]*N_OBS_DIM) --> self.observation_space = spaces.Box(-high, high)
         self.observation_space = spaces.Box(
             low=-exp_id, high=exp_id, shape=(BATCH_CANDIDATES, len(self.df_col_list)), dtype=np.float16)
 

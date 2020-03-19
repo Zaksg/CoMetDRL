@@ -109,7 +109,7 @@ def drl_run():
 
     model = PPO2(MlpPolicy, env, verbose=1)
     # model.learn(total_timesteps=25000)
-    model.learn(total_timesteps=NUM_ITERATIONS*10)
+    model.learn(total_timesteps=NUM_ITERATIONS)
 
     obs = env.reset()
     for i in range(1, NUM_ITERATIONS):

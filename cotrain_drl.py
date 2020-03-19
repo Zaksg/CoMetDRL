@@ -9,8 +9,9 @@ import meta_model_for_java_csv_v2 as meta_model
 from os import listdir
 from os.path import isfile, join
 from stable_baselines.common.policies import MlpPolicy
+from stable_baselines.deepq.policies import MlpPolicy as d_MlpPolicy
 from stable_baselines.common.vec_env import DummyVecEnv
-from stable_baselines import PPO2
+from stable_baselines import PPO2, DQN
 import gym
 
 from gym_comet_pck.gym_comet.envs.CoMetEnv import CoMetEnv
@@ -66,7 +67,7 @@ def meta_features_process(modelFiles, file_prefix, iteration, dataset):
     '''rewards'''
     _rewards = batch_meta_features[['batch_id', 'afterBatchAuc']]
     # _rewards = 0
-
+    meta_features = meta_features.drop(['dataset'], axis=1)
     return _env, _state, _rewards, meta_features
 
 
@@ -104,9 +105,18 @@ def drl_run():
     score_ds_f, instance_batch_f, rewards, meta_f = meta_features_process(modelFiles, file_prefix, 0, dataset_arff)
 
     ''' RL '''
-    env = DummyVecEnv([lambda: CoMetEnv(meta_f)])
-    for iteration in range(1, NUM_ITERATIONS):
-        print(iteration)
+    env = DummyVecEnv([lambda: CoMetEnv(meta_f, dataset_arff, exp_id, modelFiles)])
+
+    model = PPO2(MlpPolicy, env, verbose=1)
+    # model.learn(total_timesteps=25000)
+    model.learn(total_timesteps=NUM_ITERATIONS)
+
+    obs = env.reset()
+    for i in range(1, NUM_ITERATIONS):
+        action, _states = model.predict(obs)
+        print("action: {}".format(action))
+        obs, rewards, done, info = env.step(action)
+        # env.render()
 
 
 def run_cotrain_iterations():
@@ -147,11 +157,11 @@ def run_cotrain_iterations():
 
         '''Process meta features'''
         env, states, rewards, meta_features = meta_features_process(modelFiles, file_prefix, iteration, dataset_arff)
+        print("Iteration: {}, meta features shape: {}X{}".format(iteration, str(meta_features.shape[0]), str(meta_features.shape[1])))
         print('Finish iteration {} on dataset {}'.format(iteration, dataset_arff))
 
     '''step 3: co-train evaluation'''
     set_test_auc(dataset_arff, modelFiles, file_prefix)
-
 
 
 if __name__ == "__main__":

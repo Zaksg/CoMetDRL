@@ -63,7 +63,7 @@ class CoMetEnv(gym.Env):
         obs, rewards = self._next_observation()
         print("Selected batch id: {}".format(self.selected_batch_id))
         # current_reward = rewards[['batch_id' == self.selected_batch_id]]['afterBatchAuc']
-        current_reward = rewards[rewards['batch_id'] == 0]['afterBatchAuc'].values[0]
+        current_reward = rewards[rewards['batch_id'] == self.selected_batch_id]['afterBatchAuc'].values[0]
         self.reward = (current_reward - self.reward)
         '''
         try:
@@ -85,7 +85,8 @@ class CoMetEnv(gym.Env):
     def reset(self):
         self.iteration = 0
         self.reward = 0
-        self.selected_batch_id = -2
+        # self.selected_batch_id = -2
+        self.selected_batch_id = random.randint(0, BATCH_CANDIDATES - 1)
 
     def render(self, mode='human', close=False):
         print(self.reward)

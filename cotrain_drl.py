@@ -107,8 +107,8 @@ def drl_run():
     ''' RL '''
     env = DummyVecEnv([lambda: CoMetEnv(meta_f, dataset_arff, exp_id, modelFiles)])
 
-    model = PPO2(MlpPolicy, env, verbose=1)
-    # model.learn(total_timesteps=25000)
+    # model = PPO2(MlpPolicy, env, verbose=1)
+    model = DQN(d_MlpPolicy, env, verbose=1)
     model.learn(total_timesteps=NUM_ITERATIONS)
 
     obs = env.reset()

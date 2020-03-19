@@ -43,7 +43,6 @@ class CoMetEnv(gym.Env):
         score_ds_f, instance_batch_f, rewards, meta_f = self.meta_features_process(
             self.modelFiles, self.file_prefix, self.iteration, self.dataset)
         not_in_meta_f = list(set(self.df_col_list) - set(meta_f.columns))
-        # ToDo: debug why the shape here is 2234 and not 2233 - is there a duplication?
         more_cols = {}
         for col in not_in_meta_f:
             if col not in more_cols:
@@ -54,22 +53,29 @@ class CoMetEnv(gym.Env):
         self.df = meta_f
         return meta_f, rewards
 
-    # ToDo: implement the selection of the batch id
     def _take_action(self, action):
         print("action - take action: {}".format(action))
-        self.selected_batch_id = random.randint(0, BATCH_CANDIDATES - 1)
+        # self.selected_batch_id = random.randint(0, BATCH_CANDIDATES - 1)
+        self.selected_batch_id = action
 
     def step(self, action):
         self.iteration += 1
         self._take_action(action)
         obs, rewards = self._next_observation()
         print("Selected batch id: {}".format(self.selected_batch_id))
+        # current_reward = rewards[['batch_id' == self.selected_batch_id]]['afterBatchAuc']
+        current_reward = rewards[rewards['batch_id'] == 0]['afterBatchAuc'].values[0]
+        self.reward = (current_reward - self.reward)
+        '''
         try:
-            current_reward = rewards[['batch_id' == self.selected_batch_id]]['afterBatchAuc']
+            # current_reward = rewards[['batch_id' == self.selected_batch_id]]['afterBatchAuc']
+            current_reward = rewards[rewards['batch_id'] == 0]['afterBatchAuc'].values[0]
             self.reward += current_reward
-        except Exception:
-            print(rewards.head())
+        except Exception as e:
+            # print(rewards.head())
+            print(e)
             current_reward = -1
+        '''
         info = {
             'batch_id': self.selected_batch_id,
             'iter_reward': current_reward

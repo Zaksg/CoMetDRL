@@ -109,14 +109,14 @@ def drl_run():
 
     model = PPO2(MlpPolicy, env, verbose=1)
     # model.learn(total_timesteps=25000)
-    model.learn(total_timesteps=NUM_ITERATIONS)
+    model.learn(total_timesteps=NUM_ITERATIONS*10)
 
     obs = env.reset()
     for i in range(1, NUM_ITERATIONS):
         action, _states = model.predict(obs)
         print("action: {}".format(action))
         obs, rewards, done, info = env.step(action)
-        # env.render()
+        env.render()
 
 
 def run_cotrain_iterations():

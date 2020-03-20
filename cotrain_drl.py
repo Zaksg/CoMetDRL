@@ -115,6 +115,7 @@ def drl_run():
     for i in range(1, NUM_ITERATIONS):
         action, _states = model.predict(obs)
         print("action: {}".format(action))
+        # obs, rewards, done, info = env.step(action)
         obs, rewards, done, info = env.step(action)
         env.render()
 

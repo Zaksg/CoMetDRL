@@ -36,7 +36,7 @@ class CoMetEnv(gym.Env):
             low=-exp_id, high=exp_id, shape=(BATCH_CANDIDATES, len(self.df_col_list)), dtype=np.float16)
 
     def _next_observation(self):
-        print("iteration: {}".format(self.iteration))
+        print("iteration: {}, selected batch: {}".format(self.iteration, self.selected_batch_id))
         subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "iteration",
                          self.file_prefix, str(self.selected_batch_id), str(self.iteration), str(self.exp)])
         score_ds_f, instance_batch_f, rewards, meta_f = self.meta_features_process(
@@ -59,9 +59,13 @@ class CoMetEnv(gym.Env):
 
     def step(self, action):
         self.iteration += 1
-        self._take_action(action)
+        try:
+            act = action[0]
+        except Exception:
+            act = action
+        self._take_action(act)
         obs, rewards = self._next_observation()
-        print("Selected batch id: {}".format(self.selected_batch_id))
+        # print("Selected batch id: {}".format(self.selected_batch_id))
         # current_reward = rewards[['batch_id' == self.selected_batch_id]]['afterBatchAuc']
         current_reward = rewards[rewards['batch_id'] == self.selected_batch_id]['afterBatchAuc'].values[0]
         self.reward = (current_reward - self.reward)

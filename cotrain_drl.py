@@ -108,13 +108,13 @@ def drl_run():
     env = DummyVecEnv([lambda: CoMetEnv(meta_f, dataset_arff, exp_id, modelFiles)])
 
     # model = PPO2(MlpPolicy, env, verbose=1)
-    model = DQN(d_MlpPolicy, env, verbose=1)
+    model = DQN(d_MlpPolicy, env, verbose=1, batch_size=1, exploration_fraction=0.5)
     model.learn(total_timesteps=NUM_ITERATIONS)
 
     obs = env.reset()
     for i in range(1, NUM_ITERATIONS):
         action, _states = model.predict(obs)
-        print("action: {}".format(action))
+        # print("action: {}".format(action))
         # obs, rewards, done, info = env.step(action)
         obs, rewards, done, info = env.step(action)
         env.render()

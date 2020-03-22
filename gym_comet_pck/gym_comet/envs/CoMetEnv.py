@@ -8,7 +8,36 @@ import meta_model_for_java_csv_v2 as meta_model
 import subprocess
 
 MAX_AUC_SCORE = 1
+ITERATIONS = 20
 BATCH_CANDIDATES = 1296
+EPSILON = 0.05
+
+org_dist_list = [
+    "ailerons.arff"
+    , "bank-full.arff"
+    , "cardiography_new.arff"
+    , "contraceptive.arff"
+    , "cpu_act.arff"
+    , "delta_elevators.arff"
+    , "diabetes.arff"
+    , "german_credit.arff"
+    , "ionosphere.arff"
+    , "kc2.arff"
+    , "mammography.arff"
+    , "page-blocks_new.arff"
+    , "php0iVrYT.arff"
+    , "php7KLval.arff"
+    , "php8Mz7BG.arff"
+    , "php9xWOpn.arff"
+    , "php50jXam.arff"
+    , "phpelnJ6y.arff"
+    , "phpOJxGL9.arff"
+    , "puma8NH.arff"
+    , "puma32H.arff"
+    , "seismic-bumps.arff"
+    , "space_ga.arff"
+    , "spambase.arff"
+    , "wind.arff"]
 
 class CoMetEnv(gym.Env):
     metadata = {'render.modes': ['human']}
@@ -17,8 +46,9 @@ class CoMetEnv(gym.Env):
         super(CoMetEnv, self).__init__()
 
         self.df = df
-        self.reward_range = (0, MAX_AUC_SCORE)
+        self.reward_range = (0, MAX_AUC_SCORE * ITERATIONS)
         self.reward = 0
+
         self.dataset = dataset_arff
         self.exp = exp_id
         self.file_prefix = str(exp_id) + "_" + dataset_arff[:-5] + "_"
@@ -26,10 +56,11 @@ class CoMetEnv(gym.Env):
         self.iteration = 0
         self.selected_batch_id = -2
         self.df_col_list = df.columns
+        self.prev_auc = 0
 
         # Actions
         self.action_space = spaces.Discrete(BATCH_CANDIDATES)
-        # self.action_space = spaces.Discrete(1)
+        # self.action_space = spaces.Box(low=0, high=(BATCH_CANDIDATES-1), shape=(1, 1), dtype=np.int64)
 
         # 1296 batches and 2233 meta-features per batch
         self.observation_space = spaces.Box(
@@ -54,8 +85,15 @@ class CoMetEnv(gym.Env):
 
     def _take_action(self, action):
         print("action - take action: {}".format(action))
-        # self.selected_batch_id = random.randint(0, BATCH_CANDIDATES - 1)
-        self.selected_batch_id = action
+        '''
+        if random.random() <= EPSILON:
+            print("Entered the epsilon")
+            self.selected_batch_id = random.randint(0, BATCH_CANDIDATES - 1)
+        else:
+            # self.selected_batch_id = action
+            self.selected_batch_id = int(self.df.iloc[action]['batch_id'])
+        '''
+        self.selected_batch_id = int(self.df.iloc[action]['batch_id'])
 
     def step(self, action):
         self.iteration += 1
@@ -65,35 +103,37 @@ class CoMetEnv(gym.Env):
             act = action
         self._take_action(act)
         obs, rewards = self._next_observation()
-        # print("Selected batch id: {}".format(self.selected_batch_id))
-        # current_reward = rewards[['batch_id' == self.selected_batch_id]]['afterBatchAuc']
-        current_reward = rewards[rewards['batch_id'] == self.selected_batch_id]['afterBatchAuc'].values[0]
-        self.reward = (current_reward - self.reward)
-        '''
-        try:
-            # current_reward = rewards[['batch_id' == self.selected_batch_id]]['afterBatchAuc']
-            current_reward = rewards[rewards['batch_id'] == 0]['afterBatchAuc'].values[0]
-            self.reward += current_reward
-        except Exception as e:
-            # print(rewards.head())
-            print(e)
-            current_reward = -1
-        '''
+        current_auc = rewards[rewards['batch_id'] == self.selected_batch_id]['afterBatchAuc'].values[0]
+        if self.iteration <= 1:
+            # self.reward = current_auc
+            self.prev_auc = current_auc
+        else:
+            self.reward += (current_auc - self.prev_auc)
+            print("reward: {}, current auc: {}, prev auc: {}".format(self.reward, current_auc, self.prev_auc))
+            self.prev_auc = current_auc
         info = {
             'batch_id': self.selected_batch_id,
-            'iter_reward': current_reward
+            'iter_auc': current_auc,
+            'reward': self.reward
         }
-        done = self.iteration > 20
+        done = self.iteration > ITERATIONS
         return obs, self.reward, done, info
 
     def reset(self):
+        self.exp += 1
+        # self.selected_batch_id = -2
+        subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "init", self.dataset, self.file_prefix])
+        subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "iteration",
+                         self.file_prefix, str(-2), str(0), str(self.exp)])
+        # score_ds_f, instance_batch_f, rewards, meta_f = self.meta_features_process(self.modelFiles, self.file_prefix, 0, self.dataset)
         self.iteration = 0
         self.reward = 0
-        # self.selected_batch_id = -2
+        self.prev_auc = 0
         self.selected_batch_id = random.randint(0, BATCH_CANDIDATES - 1)
 
     def render(self, mode='human', close=False):
-        print(self.reward)
+        print("Selected batch: {}".format(self.selected_batch_id))
+        print("Reward: {}".format(self.reward))
 
     def meta_features_process(self, modelFiles, file_prefix, iteration, dataset):
         """

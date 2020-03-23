@@ -99,7 +99,7 @@ def drl_run():
     dataset_arff = "german_credit.arff"
     exp_id = int(round(time.time() % 1000000, 0))
     file_prefix = str(exp_id) + "_" + dataset_arff[:-5] + "_"
-    subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "init", dataset_arff, file_prefix])
+    subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "init", dataset_arff, file_prefix, str(exp_id)])
     subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "iteration",
                      file_prefix, str(-2), str(0), str(exp_id)])
     score_ds_f, instance_batch_f, rewards, meta_f = meta_features_process(modelFiles, file_prefix, 0, dataset_arff)

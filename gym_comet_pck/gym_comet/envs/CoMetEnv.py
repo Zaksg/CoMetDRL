@@ -11,6 +11,7 @@ MAX_AUC_SCORE = 1
 ITERATIONS = 20
 BATCH_CANDIDATES = 1296
 EPSILON = 0.05
+RUNS_PER_DATASET = 5
 
 org_dist_list = [
     "ailerons.arff"
@@ -57,6 +58,7 @@ class CoMetEnv(gym.Env):
         self.selected_batch_id = -2
         self.df_col_list = df.columns
         self.prev_auc = 0
+        self.total_runs = 0
 
         # Actions
         self.action_space = spaces.Discrete(BATCH_CANDIDATES)
@@ -116,13 +118,17 @@ class CoMetEnv(gym.Env):
             'iter_auc': current_auc,
             'reward': self.reward
         }
-        done = self.iteration > ITERATIONS
+        if self.iteration > ITERATIONS:
+            self.run_dataset_new_seed(self.dataset)
+            self.total_runs += 1
+        done = self.total_runs > RUNS_PER_DATASET
         return obs, self.reward, done, info
 
     def reset(self):
         self.exp += 1
         # self.selected_batch_id = -2
-        subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "init", self.dataset, self.file_prefix])
+        subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "init", self.dataset, self.file_prefix,
+                         str(self.exp)])
         subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "iteration",
                          self.file_prefix, str(-2), str(0), str(self.exp)])
         # score_ds_f, instance_batch_f, rewards, meta_f = self.meta_features_process(self.modelFiles, self.file_prefix, 0, self.dataset)
@@ -186,3 +192,16 @@ class CoMetEnv(gym.Env):
 
     def get_iteration(self):
         return self.iteration
+
+    def run_dataset_new_seed(self, dataset_name):
+        self.exp += 1
+        subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "init", dataset_name, self.file_prefix,
+                         str(self.exp)])
+        subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "iteration",
+                         self.file_prefix, str(-2), str(0), str(self.exp)])
+        score_ds_f, instance_batch_f, rewards, meta_f = self.meta_features_process(self.modelFiles, self.file_prefix, 0,
+                                                                                   dataset_name)
+        self.df = meta_f
+        self.iteration = 0
+        self.prev_auc = 0
+        # self.selected_batch_id = random.randint(0, BATCH_CANDIDATES - 1)

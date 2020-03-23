@@ -8,7 +8,7 @@ import meta_model_for_java_csv_v2 as meta_model
 import subprocess
 
 MAX_AUC_SCORE = 1
-ITERATIONS = 20
+ITERATIONS = 5
 BATCH_CANDIDATES = 1296
 EPSILON = 0.05
 RUNS_PER_DATASET = 5
@@ -193,8 +193,12 @@ class CoMetEnv(gym.Env):
     def get_iteration(self):
         return self.iteration
 
+    def set_id(self, new_exp_id):
+        self.exp = new_exp_id
+
     def run_dataset_new_seed(self, dataset_name):
         self.exp += 1
+        self.file_prefix = str(self.exp) + "_" + dataset_name[:-5] + "_"
         subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "init", dataset_name, self.file_prefix,
                          str(self.exp)])
         subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "iteration",

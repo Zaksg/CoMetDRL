@@ -88,15 +88,9 @@ def set_test_auc(dataset_arff, modelFiles, file_prefix):
     auc_df.to_csv('{}{}_exp_full_auc.csv'.format(modelFiles, file_prefix))
 
 
-def drl_run():
+def drl_run(dataset_arff, modelFiles):
     NUM_ITERATIONS = 20
-    ''' Files '''
-    # modelFiles = '/data/home/zaksg/co-train/cotrain-v2/model-files/'
-    # modelFiles = '/Users/guyz/Documents/CoTrainingVerticalEnsemble - gilad/model files/'
-    modelFiles = r"C:\Users\guyz\Documents\CoTrainingVerticalEnsemble\meta_model\model_file_testing"
-
     '''step 1: init'''
-    dataset_arff = "german_credit.arff"
     exp_id = int(round(time.time() % 1000000, 0))
     file_prefix = str(exp_id) + "_" + dataset_arff[:-5] + "_"
     subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "init", dataset_arff, file_prefix, str(exp_id)])
@@ -116,6 +110,32 @@ def drl_run():
         action, _states = model.predict(obs)
         # print("action: {}".format(action))
         # obs, rewards, done, info = env.step(action)
+        obs, rewards, done, info = env.step(action)
+        env.render()
+    model_name = "dqn_{}".format(dataset_arff[:-5])
+    model.save(model_name)
+    env.close()
+    return model_name
+
+
+def drl_run_test_dataset(dataset, modelFiles, trained_model):
+    NUM_ITERATIONS = 20
+    model = DQN.load(trained_model)
+    '''step 1: init'''
+    exp_id = int(round(time.time() % 1000000, 0))
+    file_prefix = str(exp_id) + "_" + dataset[:-5] + "_"
+    subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "init", dataset, file_prefix, str(exp_id)])
+    subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "iteration",
+                     file_prefix, str(-2), str(0), str(exp_id)])
+    score_ds_f, instance_batch_f, rewards, meta_f = meta_features_process(modelFiles, file_prefix, 0, dataset)
+
+    ''' RL '''
+    env = DummyVecEnv([lambda: CoMetEnv(meta_f, dataset, exp_id, modelFiles)])
+    model.set_env(env)
+    model.learn(total_timesteps=NUM_ITERATIONS)
+    obs = env.reset()
+    for i in range(1, NUM_ITERATIONS):
+        action, _states = model.predict(obs)
         obs, rewards, done, info = env.step(action)
         env.render()
 
@@ -166,5 +186,15 @@ def run_cotrain_iterations():
 
 
 if __name__ == "__main__":
-    drl_run()
+    ''' Files '''
+    # modelFiles = '/data/home/zaksg/co-train/cotrain-v2/model-files/'
+    # modelFiles = '/Users/guyz/Documents/CoTrainingVerticalEnsemble - gilad/model files/'
+    modelFiles = r"C:\Users\guyz\Documents\CoTrainingVerticalEnsemble\meta_model\model_file_testing"
+    ''' Datasets '''
+    dataset_arff_train = "german_credit.arff"
+    dataset_arff_test = "cardiography_new.arff"
+    ''' Run '''
+    trained_model_name = drl_run(dataset_arff_train, modelFiles)
+    drl_run_test_dataset(dataset_arff_test, modelFiles, trained_model_name)
+
     # run_cotrain_iterations()

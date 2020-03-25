@@ -102,7 +102,7 @@ def drl_run(dataset_arff, modelFiles):
     env = DummyVecEnv([lambda: CoMetEnv(meta_f, dataset_arff, exp_id, modelFiles)])
 
     # model = PPO2(MlpPolicy, env, verbose=1)
-    model = DQN(d_MlpPolicy, env, verbose=1, batch_size=1, exploration_fraction=0.5)
+    model = DQN(d_MlpPolicy, env, verbose=1, batch_size=1, exploration_fraction=0.8)
     model.learn(total_timesteps=NUM_ITERATIONS)
 
     obs = env.reset()
@@ -120,7 +120,9 @@ def drl_run(dataset_arff, modelFiles):
 
 def drl_run_test_dataset(dataset, modelFiles, trained_model):
     NUM_ITERATIONS = 20
+
     model = DQN.load(trained_model)
+    print("model loaded")
     '''step 1: init'''
     exp_id = int(round(time.time() % 1000000, 0))
     file_prefix = str(exp_id) + "_" + dataset[:-5] + "_"
@@ -132,7 +134,7 @@ def drl_run_test_dataset(dataset, modelFiles, trained_model):
     ''' RL '''
     env = DummyVecEnv([lambda: CoMetEnv(meta_f, dataset, exp_id, modelFiles)])
     model.set_env(env)
-    model.learn(total_timesteps=NUM_ITERATIONS)
+    # model.learn(total_timesteps=NUM_ITERATIONS)
     obs = env.reset()
     for i in range(1, NUM_ITERATIONS):
         action, _states = model.predict(obs)
@@ -140,7 +142,7 @@ def drl_run_test_dataset(dataset, modelFiles, trained_model):
         env.render()
 
 
-def run_cotrain_iterations():
+def run_cotrain_iterations(dataset_arff="german_credit.arff"):
     '''
             Step 1: send java code the dataset (arff file) and file prefix
             Step 2: for 20 iteration - process the meta features and select the batch to add
@@ -155,9 +157,10 @@ def run_cotrain_iterations():
 
     '''step 1: init'''
     dataset_arff = "german_credit.arff"
+    # dataset_arff = "cardiography_new.arff"
     exp_id = int(round(time.time() % 1000000, 0))
     file_prefix = str(exp_id) + "_" + dataset_arff[:-5] + "_"
-    subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "init", dataset_arff, file_prefix])
+    subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "init", dataset_arff, file_prefix, str(exp_id)])
 
     '''step 2: learning'''
     for iteration in range(NUM_ITERATIONS):
@@ -192,9 +195,9 @@ if __name__ == "__main__":
     modelFiles = r"C:\Users\guyz\Documents\CoTrainingVerticalEnsemble\meta_model\model_file_testing"
     ''' Datasets '''
     dataset_arff_train = "german_credit.arff"
-    dataset_arff_test = "cardiography_new.arff"
+    dataset_arff_test = "cardiography_new.arff" # "contraceptive.arff" #
     ''' Run '''
     trained_model_name = drl_run(dataset_arff_train, modelFiles)
     drl_run_test_dataset(dataset_arff_test, modelFiles, trained_model_name)
 
-    # run_cotrain_iterations()
+    # run_cotrain_iterations(dataset_arff_train)

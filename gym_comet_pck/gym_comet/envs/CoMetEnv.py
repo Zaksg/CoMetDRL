@@ -8,10 +8,10 @@ import meta_model_for_java_csv_v2 as meta_model
 import subprocess
 
 MAX_AUC_SCORE = 1
-ITERATIONS = 5
+ITERATIONS = 3
 BATCH_CANDIDATES = 1296
 EPSILON = 0.05
-RUNS_PER_DATASET = 5
+RUNS_PER_DATASET = 4
 
 org_dist_list = [
     "ailerons.arff"

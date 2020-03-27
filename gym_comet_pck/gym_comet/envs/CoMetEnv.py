@@ -7,13 +7,13 @@ import numpy as np
 import meta_model_for_java_csv_v2 as meta_model
 import subprocess
 
-MAX_AUC_SCORE = 1
-ITERATIONS = 3
+MAX_AUC_SCORE = 10
+ITERATIONS_PER_DATASET = 3
 BATCH_CANDIDATES = 1296
 EPSILON = 0.05
-RUNS_PER_DATASET = 4
+RUNS_PER_DATASET = 2
 
-org_dist_list = [
+DATASET_LIST = [
     "ailerons.arff"
     , "bank-full.arff"
     , "cardiography_new.arff"
@@ -43,28 +43,44 @@ org_dist_list = [
 class CoMetEnv(gym.Env):
     metadata = {'render.modes': ['human']}
 
-    def __init__(self, df, dataset_arff, exp_id, modelFiles):
+    def __init__(self, dataset_env_list, exp_id, modelFiles):
         super(CoMetEnv, self).__init__()
 
-        self.df = df
-        self.reward_range = (0, MAX_AUC_SCORE * ITERATIONS)
-        self.reward = 0
 
-        self.dataset = dataset_arff
+        ''' Env attributes '''
+        self.cnt_dataset_runs = 0
+        self.num_datasets = len(dataset_env_list)
+        self.dataset_list = dataset_env_list
+        self.current_dataset_index = 0
         self.exp = exp_id
-        self.file_prefix = str(exp_id) + "_" + dataset_arff[:-5] + "_"
+        self.dataset = self.dataset_list[self.current_dataset_index]
         self.modelFiles = modelFiles
         self.iteration = 0
-        self.selected_batch_id = -2
-        self.df_col_list = df.columns
+        self.file_prefix = str(self.exp) + "_" + self.dataset[:-5] + "_"
+        # self.selected_batch_id = -2
+        ''' Env creation '''
+        subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "init",
+                         self.dataset, self.file_prefix, str(self.exp)])
+        subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "iteration",
+                         self.file_prefix, str(-2), str(self.iteration), str(self.exp)])
+        score_ds_f, instance_batch_f, rewards, meta_f = self.meta_features_process(modelFiles, self.file_prefix,
+                                                                                   self.iteration, self.dataset)
+        self.df = meta_f
+        self.df_col_list = meta_f.columns
+
+        ''' Reward attributes '''
+        self.reward = 0
         self.prev_auc = 0
-        self.total_runs = 0
+        self.cost = 0
+        ''' GYM attributes '''
+        # Reward range
+        self.reward_range = (0, MAX_AUC_SCORE * ITERATIONS_PER_DATASET)
 
         # Actions
         self.action_space = spaces.Discrete(BATCH_CANDIDATES)
-        # self.action_space = spaces.Box(low=0, high=(BATCH_CANDIDATES-1), shape=(1, 1), dtype=np.int64)
+        # self.action_space = spaces.MultiDiscrete(nvec=[BATCH_CANDIDATES, 2]) # For active learning
 
-        # 1296 batches and 2233 meta-features per batch
+        # 1296 batches and 2232 meta-features per batch
         self.observation_space = spaces.Box(
             low=-exp_id, high=exp_id, shape=(BATCH_CANDIDATES, len(self.df_col_list)), dtype=np.float16)
 
@@ -85,7 +101,7 @@ class CoMetEnv(gym.Env):
         self.df = meta_f
         return meta_f, rewards
 
-    def _take_action(self, action):
+    def _take_action(self, action, act_type):
         print("action - take action: {}".format(action))
         '''
         if random.random() <= EPSILON:
@@ -96,14 +112,23 @@ class CoMetEnv(gym.Env):
             self.selected_batch_id = int(self.df.iloc[action]['batch_id'])
         '''
         self.selected_batch_id = int(self.df.iloc[action]['batch_id'])
+        if act_type == 1:
+            self.cost += 1
+            print("Use active learning")
+        elif act_type == 0:
+            print("Don't use active learning")
+        else:
+            print("Multi discrete not activated")
 
     def step(self, action):
         self.iteration += 1
         try:
             act = action[0]
+            act_type = action[1]
         except Exception:
             act = action
-        self._take_action(act)
+            act_type = -1
+        self._take_action(act, act_type)
         obs, rewards = self._next_observation()
         current_auc = rewards[rewards['batch_id'] == self.selected_batch_id]['afterBatchAuc'].values[0]
         if self.iteration <= 1:
@@ -118,24 +143,46 @@ class CoMetEnv(gym.Env):
             'iter_auc': current_auc,
             'reward': self.reward
         }
-        if self.iteration > ITERATIONS:
-            self.run_dataset_new_seed(self.dataset)
-            self.total_runs += 1
-        done = self.total_runs > RUNS_PER_DATASET
+        ''' Datasets changes '''
+        done = False
+        if self.iteration >= ITERATIONS_PER_DATASET:
+            # no more iterations and do not need to run same ds
+            if self.cnt_dataset_runs >= RUNS_PER_DATASET:
+                # ds left to run
+                if self.current_dataset_index < self.num_datasets - 1:
+                    self.cnt_dataset_runs = 0
+                    self.current_dataset_index += 1
+                    self.dataset = self.dataset_list[self.current_dataset_index]
+                    print("Start new DS {}".format(self.dataset))
+                    self.run_dataset_new_seed(self.dataset)
+                # out of exp
+                else:
+                    print("Done")
+                    done = True
+            # no more iterations, need to run same ds
+            else:
+                print("Continue to another run of {}".format(self.dataset))
+                self.run_dataset_new_seed(self.dataset)
+                self.cnt_dataset_runs += 1
+
         return obs, self.reward, done, info
 
     def reset(self):
-        self.exp += 1
-        # self.selected_batch_id = -2
-        subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "init", self.dataset, self.file_prefix,
-                         str(self.exp)])
-        subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "iteration",
-                         self.file_prefix, str(-2), str(0), str(self.exp)])
-        # score_ds_f, instance_batch_f, rewards, meta_f = self.meta_features_process(self.modelFiles, self.file_prefix, 0, self.dataset)
-        self.iteration = 0
-        self.reward = 0
-        self.prev_auc = 0
-        self.selected_batch_id = random.randint(0, BATCH_CANDIDATES - 1)
+        if self.iteration >= ITERATIONS_PER_DATASET:
+            self.exp += 1
+            # self.selected_batch_id = -2
+            subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "init", self.dataset, self.file_prefix,
+                             str(self.exp)])
+            subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "iteration",
+                             self.file_prefix, str(-2), str(0), str(self.exp)])
+            # score_ds_f, instance_batch_f, rewards, meta_f = self.meta_features_process(self.modelFiles, self.file_prefix, 0, self.dataset)
+            self.iteration = 0
+            self.reward = 0
+            self.cost = 0
+            self.prev_auc = 0
+            self.selected_batch_id = random.randint(0, BATCH_CANDIDATES - 1)
+        else:
+            print("Try to reset before max iteration. Currently: {}; Should be {}".format(self.iteration, ITERATIONS_PER_DATASET))
 
     def render(self, mode='human', close=False):
         print("Selected batch: {}".format(self.selected_batch_id))

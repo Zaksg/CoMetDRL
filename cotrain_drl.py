@@ -11,15 +11,12 @@ from os.path import isfile, join
 from stable_baselines.common.policies import MlpPolicy
 from stable_baselines.deepq.policies import MlpPolicy as d_MlpPolicy
 from stable_baselines.common.vec_env import DummyVecEnv
-from stable_baselines import PPO2, DQN
+from stable_baselines import PPO2, DQN, A2C
 import gym
 
 from gym_comet_pck.gym_comet.envs.CoMetEnv import CoMetEnv
 
 # import trfl
-# import tensorflow as tf
-# import stable_baselines
-
 
 general_folder = '/data/home/zaksg/co-train/cotrain-v2/'
 
@@ -92,19 +89,23 @@ def drl_run(dataset_arff, modelFiles):
     NUM_ITERATIONS = 20
     '''step 1: init'''
     exp_id = int(round(time.time() % 1000000, 0))
-    file_prefix = str(exp_id) + "_" + dataset_arff[:-5] + "_"
-    subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "init", dataset_arff, file_prefix, str(exp_id)])
-    subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "iteration",
-                     file_prefix, str(-2), str(0), str(exp_id)])
-    score_ds_f, instance_batch_f, rewards, meta_f = meta_features_process(modelFiles, file_prefix, 0, dataset_arff)
+    # file_prefix = str(exp_id) + "_" + dataset_arff[:-5] + "_"
+    # subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "init", dataset_arff, file_prefix, str(exp_id)])
+    # subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "iteration",
+    #                  file_prefix, str(-2), str(0), str(exp_id)])
+    # score_ds_f, instance_batch_f, rewards, meta_f = meta_features_process(modelFiles, file_prefix, 0, dataset_arff)
 
     ''' RL '''
-    env = DummyVecEnv([lambda: CoMetEnv(meta_f, dataset_arff, exp_id, modelFiles)])
+    # env = DummyVecEnv([lambda: CoMetEnv(dataset_arff, exp_id, modelFiles, meta_f)])
+    env = DummyVecEnv([lambda: CoMetEnv(dataset_arff, exp_id, modelFiles)])
 
-    # model = PPO2(MlpPolicy, env, verbose=1)
+    # model = PPO2(MlpPolicy, env, verbose=1, learning_rate=0.01)
+    # model = A2C(MlpPolicy, env, verbose=1)
     model = DQN(d_MlpPolicy, env, verbose=1, batch_size=1, exploration_fraction=0.8)
+
     model.learn(total_timesteps=NUM_ITERATIONS)
 
+    '''
     obs = env.reset()
     for i in range(1, NUM_ITERATIONS):
         action, _states = model.predict(obs)
@@ -112,7 +113,9 @@ def drl_run(dataset_arff, modelFiles):
         # obs, rewards, done, info = env.step(action)
         obs, rewards, done, info = env.step(action)
         env.render()
-    model_name = "dqn_{}".format(dataset_arff[:-5])
+    '''
+    model_name = "dqn_{}".format('_'.join(dataset_arff).replace(".arff", ""))
+    # model_name = "ppo_{}".format(dataset_arff[:-5])
     model.save(model_name)
     env.close()
     return model_name
@@ -122,17 +125,20 @@ def drl_run_test_dataset(dataset, modelFiles, trained_model):
     NUM_ITERATIONS = 20
 
     model = DQN.load(trained_model)
+    # model = PPO2.load(trained_model)
+
     print("model loaded")
     '''step 1: init'''
     exp_id = int(round(time.time() % 1000000, 0))
-    file_prefix = str(exp_id) + "_" + dataset[:-5] + "_"
-    subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "init", dataset, file_prefix, str(exp_id)])
-    subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "iteration",
-                     file_prefix, str(-2), str(0), str(exp_id)])
-    score_ds_f, instance_batch_f, rewards, meta_f = meta_features_process(modelFiles, file_prefix, 0, dataset)
+    # file_prefix = str(exp_id) + "_" + dataset[:-5] + "_"
+    # subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "init", dataset, file_prefix, str(exp_id)])
+    # subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "iteration",
+    #                  file_prefix, str(-2), str(0), str(exp_id)])
+    # score_ds_f, instance_batch_f, rewards, meta_f = meta_features_process(modelFiles, file_prefix, 0, dataset)
 
     ''' RL '''
-    env = DummyVecEnv([lambda: CoMetEnv(meta_f, dataset, exp_id, modelFiles)])
+    # env = DummyVecEnv([lambda: CoMetEnv(dataset, exp_id, modelFiles, meta_f)])
+    env = DummyVecEnv([lambda: CoMetEnv(dataset, exp_id, modelFiles)])
     model.set_env(env)
     # model.learn(total_timesteps=NUM_ITERATIONS)
     obs = env.reset()
@@ -189,13 +195,15 @@ def run_cotrain_iterations(dataset_arff="german_credit.arff"):
 
 
 if __name__ == "__main__":
+    #ToDo: consider kerasRL
     ''' Files '''
     # modelFiles = '/data/home/zaksg/co-train/cotrain-v2/model-files/'
     # modelFiles = '/Users/guyz/Documents/CoTrainingVerticalEnsemble - gilad/model files/'
     modelFiles = r"C:\Users\guyz\Documents\CoTrainingVerticalEnsemble\meta_model\model_file_testing"
     ''' Datasets '''
-    dataset_arff_train = "german_credit.arff"
-    dataset_arff_test = "cardiography_new.arff" # "contraceptive.arff" #
+    dataset_arff_train = ["german_credit.arff", "contraceptive.arff", "ionosphere.arff"]
+    # dataset_arff_train = ["german_credit.arff"]
+    dataset_arff_test = ["cardiography_new.arff"]
     ''' Run '''
     trained_model_name = drl_run(dataset_arff_train, modelFiles)
     drl_run_test_dataset(dataset_arff_test, modelFiles, trained_model_name)

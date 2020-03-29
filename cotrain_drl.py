@@ -8,18 +8,32 @@ import subprocess
 import meta_model_for_java_csv_v2 as meta_model
 from os import listdir
 from os.path import isfile, join
-from stable_baselines.common.policies import MlpPolicy
+import gym
+from gym_comet_pck.gym_comet.envs.CoMetEnv import CoMetEnv
+import tensorflow as tf
+import warnings
 from stable_baselines.deepq.policies import MlpPolicy as d_MlpPolicy
+from stable_baselines.common.policies import MlpPolicy
 from stable_baselines.common.vec_env import DummyVecEnv
 from stable_baselines import PPO2, DQN, A2C
-import gym
+# from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
 
-from gym_comet_pck.gym_comet.envs.CoMetEnv import CoMetEnv
-
+'''
+## see keras-rl2 requirements for tensorflow version
+from keras.models import Sequential
+from keras.layers import Dense, Activation, Flatten
+# from keras.optimizers import Adam
+# from tf.keras.optimizers import Adam
+from rl.agents import DQNAgent, SARSAAgent
+from rl.policy import EpsGreedyQPolicy, BoltzmannQPolicy
+from rl.memory import SequentialMemory
+from keras.layers import Input, Embedding, Dense, Concatenate, Conv1D, Lambda, Reshape
+from keras.models import Model
+import keras.backend as K
 # import trfl
-
+'''
 general_folder = '/data/home/zaksg/co-train/cotrain-v2/'
-
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 def meta_features_process(modelFiles, file_prefix, iteration, dataset):
     """
@@ -85,7 +99,7 @@ def set_test_auc(dataset_arff, modelFiles, file_prefix):
     auc_df.to_csv('{}{}_exp_full_auc.csv'.format(modelFiles, file_prefix))
 
 
-def drl_run(dataset_arff, modelFiles):
+def drl_run_sb(dataset_arff, modelFiles):
     NUM_ITERATIONS = 20
     '''step 1: init'''
     exp_id = int(round(time.time() % 1000000, 0))
@@ -148,6 +162,65 @@ def drl_run_test_dataset(dataset, modelFiles, trained_model):
         env.render()
 
 
+def drl_run_keras(dataset_arff, modelFiles):
+    '''
+    ValueError: Error when checking input: expected dense_input to have 3 dimensions
+        , but got array with shape (1, 1, 1, 1296, 2232)
+
+    :param dataset_arff:
+    :param modelFiles:
+    :return:
+    '''
+    # Get the environment and extract the number of actions.
+    exp_id = int(round(time.time() % 1000000, 0))
+    env = DummyVecEnv([lambda: CoMetEnv(dataset_arff, exp_id, modelFiles)])
+    # np.random.seed(123)
+    # env.seed(123)
+    nb_actions = env.action_space.n
+
+    # Next, we build a very simple model.
+    model = tf.keras.models.Sequential()
+    # model.add(tf.keras.layers.Flatten(input_shape=(1,) + env.observation_space.shape))
+    # model.add(tf.keras.layers.InputLayer(input_shape=env.observation_space.shape))
+    model.add(tf.keras.layers.Dense(16, input_shape=env.observation_space.shape))
+    model.add(tf.keras.layers.Dense(16))
+    model.add(tf.keras.layers.Activation('relu'))
+    model.add(tf.keras.layers.Dense(16))
+    model.add(tf.keras.layers.Activation('relu'))
+    model.add(tf.keras.layers.Dense(16))
+    model.add(tf.keras.layers.Activation('relu'))
+    model.add(tf.keras.layers.Flatten())
+    model.add(tf.keras.layers.Dense(nb_actions, activation='linear'))
+    # model.add(tf.keras.layers.Reshape((nb_actions, 1)))
+    # model.add(tf.keras.layers.Reshape((nb_actions,)))
+
+    memory = SequentialMemory(limit=50000, window_length=1)
+    # policy = BoltzmannQPolicy()
+    policy = EpsGreedyQPolicy()
+
+    # enable the dueling network
+    # you can specify the dueling_type to one of {'avg','max','naive'}
+    # dqn = DQNAgent(model=model, nb_actions=nb_actions, memory=memory, nb_steps_warmup=10,
+    #                enable_dueling_network=True, dueling_type='avg', target_model_update=1e-2, policy=policy)
+    dqn = DQNAgent(model=model, nb_actions=nb_actions, memory=memory, nb_steps_warmup=10,
+                   target_model_update=1e-2, policy=policy)
+    dqn.compile(tf.keras.optimizers.Adam(lr=1e-3), metrics=['mae'])
+    dqn.fit(env, nb_steps=50000, visualize=False, verbose=2)
+
+    model_name = 'dqn_{}_weights.h5f'.format('_'.join(dataset_arff).replace(".arff", ""))
+    dqn.save_weights(model_name, overwrite=True)
+
+    #Sarsa
+    '''
+    policy = BoltzmannQPolicy()
+    sarsa = SARSAAgent(model=model, nb_actions=nb_actions, nb_steps_warmup=10, policy=policy)
+    sarsa.compile(tf.keras.optimizers.Adam(lr=1e-3), metrics=['mae'])
+    sarsa.fit(env, nb_steps=50000, visualize=False, verbose=2)
+    
+    '''
+    return model_name
+
+
 def run_cotrain_iterations(dataset_arff="german_credit.arff"):
     '''
             Step 1: send java code the dataset (arff file) and file prefix
@@ -195,7 +268,6 @@ def run_cotrain_iterations(dataset_arff="german_credit.arff"):
 
 
 if __name__ == "__main__":
-    #ToDo: consider kerasRL
     ''' Files '''
     # modelFiles = '/data/home/zaksg/co-train/cotrain-v2/model-files/'
     # modelFiles = '/Users/guyz/Documents/CoTrainingVerticalEnsemble - gilad/model files/'
@@ -204,8 +276,15 @@ if __name__ == "__main__":
     dataset_arff_train = ["german_credit.arff", "contraceptive.arff", "ionosphere.arff"]
     # dataset_arff_train = ["german_credit.arff"]
     dataset_arff_test = ["cardiography_new.arff"]
+
     ''' Run '''
-    trained_model_name = drl_run(dataset_arff_train, modelFiles)
+
+    ## stable-baseline env
+    trained_model_name = drl_run_sb(dataset_arff_train, modelFiles)
     drl_run_test_dataset(dataset_arff_test, modelFiles, trained_model_name)
 
+    ## Keras-rl
+    # trained_model_name = drl_run_keras(dataset_arff_train, modelFiles)
+
+    ## CoMet
     # run_cotrain_iterations(dataset_arff_train)

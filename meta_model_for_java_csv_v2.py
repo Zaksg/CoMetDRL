@@ -57,9 +57,12 @@ def loadBatchMetaData(batch_meta_path):
                                                               , columns=['instance_number'])
             batches_meta_data_full_pivot_ins.columns = colNames_pivot_instance
 
+            # batches_meta_data_full_pivot = pd.concat(
+            #     [batches_meta_data_full_pivot_no_ins, batches_meta_data_full_pivot_ins]
+            #     , axis=1, join_axes=[batches_meta_data_full_pivot_no_ins.index])
             batches_meta_data_full_pivot = pd.concat(
                 [batches_meta_data_full_pivot_no_ins, batches_meta_data_full_pivot_ins]
-                , axis=1, join_axes=[batches_meta_data_full_pivot_no_ins.index])
+                , axis=1).reindex(batches_meta_data_full_pivot_no_ins.index)
 
             batches_meta_data_full_pivot = batches_meta_data_full_pivot.reset_index()
             return batches_meta_data_full_df, batches_meta_data_full_pivot

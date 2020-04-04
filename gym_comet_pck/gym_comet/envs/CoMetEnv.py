@@ -6,39 +6,14 @@ import pandas as pd
 import numpy as np
 import meta_model_for_java_csv_v2 as meta_model
 import subprocess
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
-MAX_AUC_SCORE = 10
-ITERATIONS_PER_DATASET = 3
+MAX_AUC_SCORE = 10000
+ITERATIONS_PER_DATASET = 10
 BATCH_CANDIDATES = 1296
 EPSILON = 0.05
-RUNS_PER_DATASET = 2
-
-DATASET_LIST = [
-    "ailerons.arff"
-    , "bank-full.arff"
-    , "cardiography_new.arff"
-    , "contraceptive.arff"
-    , "cpu_act.arff"
-    , "delta_elevators.arff"
-    , "diabetes.arff"
-    , "german_credit.arff"
-    , "ionosphere.arff"
-    , "kc2.arff"
-    , "mammography.arff"
-    , "page-blocks_new.arff"
-    , "php0iVrYT.arff"
-    , "php7KLval.arff"
-    , "php8Mz7BG.arff"
-    , "php9xWOpn.arff"
-    , "php50jXam.arff"
-    , "phpelnJ6y.arff"
-    , "phpOJxGL9.arff"
-    , "puma8NH.arff"
-    , "puma32H.arff"
-    , "seismic-bumps.arff"
-    , "space_ga.arff"
-    , "spambase.arff"
-    , "wind.arff"]
+RUNS_PER_DATASET = 5
 
 class CoMetEnv(gym.Env):
     metadata = {'render.modes': ['human']}
@@ -74,7 +49,7 @@ class CoMetEnv(gym.Env):
         self.cost = 0
         ''' GYM attributes '''
         # Reward range
-        self.reward_range = (0, MAX_AUC_SCORE * ITERATIONS_PER_DATASET)
+        self.reward_range = (0, MAX_AUC_SCORE * ITERATIONS_PER_DATASET * RUNS_PER_DATASET)
 
         # Actions
         self.action_space = spaces.Discrete(BATCH_CANDIDATES)
@@ -130,7 +105,7 @@ class CoMetEnv(gym.Env):
             act_type = -1
         self._take_action(act, act_type)
         obs, rewards = self._next_observation()
-        current_auc = rewards[rewards['batch_id'] == self.selected_batch_id]['afterBatchAuc'].values[0]
+        current_auc = 100 * rewards[rewards['batch_id'] == self.selected_batch_id]['afterBatchAuc'].values[0]
         if self.iteration <= 1:
             # self.reward = current_auc
             self.prev_auc = current_auc
@@ -164,6 +139,7 @@ class CoMetEnv(gym.Env):
                 print("Continue to another run of {}".format(self.dataset))
                 self.run_dataset_new_seed(self.dataset)
                 self.cnt_dataset_runs += 1
+        print("DS: {}. Iteration {} ".format(self.dataset, self.iteration))
 
         return obs, self.reward, done, info
 
@@ -199,12 +175,13 @@ class CoMetEnv(gym.Env):
             states = batch + instances meta-features
             rewards = AUC after add the batch
         """
-        dataset_meta_features_folder = r'C:\Users\guyz\Documents\CoTrainingVerticalEnsemble\CoMetDRL'
+        # dataset_meta_features_folder = r'C:\Users\guyz\Documents\CoTrainingVerticalEnsemble\CoMetDRL'
+        dataset_meta_features_folder = modelFiles
 
         '''states'''
-        batch_meta_features = meta_model.loadBatchMetaData('{}\{}{}_Batches_Meta_Data.csv'
+        batch_meta_features = meta_model.loadBatchMetaData('{}/{}{}_Batches_Meta_Data.csv'
                                                            .format(modelFiles, file_prefix, iteration))
-        instance_meta_features = meta_model.loadInstanceMetaData('{}\{}{}_Instances_Meta_Data.csv'
+        instance_meta_features = meta_model.loadInstanceMetaData('{}/{}{}_Instances_Meta_Data.csv'
                                                                  .format(modelFiles, file_prefix, iteration))
         try:
             _state = pd.merge(batch_meta_features, instance_meta_features, how='left',
@@ -215,12 +192,12 @@ class CoMetEnv(gym.Env):
 
         '''env'''
         try:
-            scoreDist_meta_features = meta_model.loadScoreDistMetaData('{}\{}{}_Score_Distribution_Meta_Data.csv'
+            scoreDist_meta_features = meta_model.loadScoreDistMetaData('{}/{}{}_Score_Distribution_Meta_Data.csv'
                                                                        .format(modelFiles, file_prefix, iteration))
             scoreDist_meta_features['dataset'] = dataset
             dataset_meta_features = meta_model.loadDatasetMetaData(dataset, dataset_meta_features_folder)
             _env = pd.merge(scoreDist_meta_features, dataset_meta_features, how='left', on=['dataset'])
-        except Exception:
+        except Exception as e:
             print("fail to merge - env")
 
         '''all meta-features'''

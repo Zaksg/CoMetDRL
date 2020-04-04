@@ -10,7 +10,7 @@ from os import listdir
 from os.path import isfile, join
 import gym
 from gym_comet_pck.gym_comet.envs.CoMetEnv import CoMetEnv
-import tensorflow as tf
+# import tensorflow as tf
 import warnings
 from stable_baselines.deepq.policies import MlpPolicy as d_MlpPolicy
 from stable_baselines.common.policies import MlpPolicy
@@ -32,8 +32,44 @@ from keras.models import Model
 import keras.backend as K
 # import trfl
 '''
-general_folder = '/data/home/zaksg/co-train/cotrain-v2/'
+# general_folder = '/data/home/zaksg/co-train/cotrain-v2/'
+general_folder = '/data/home/zaksg/co-train/cotrain-v2/drl-co'
 warnings.simplefilter(action='ignore', category=FutureWarning)
+DATASET_LIST = [
+    'abalone.arff',
+    'ailerons.arff',
+    'cardiography_new.arff',
+    'contraceptive.arff',
+    'cpu_act.arff',
+    'delta_elevators.arff',
+    'diabetes.arff',
+    'fri_c0_1000_50.arff',
+    'fri_c2_1000_10.arff',
+    'fri_c2_1000_25.arff',
+    'german_credit.arff',
+    'ionosphere.arff',
+    'kc2.arff',
+    'kdd_JapaneseVowels.arff',
+    'kr-vs-kp.arff',
+    'mammography.arff',
+    'mfeat-karhunen.arff',
+    'ozone-level-8hr.arff',
+    'page-blocks_new.arff',
+    'php0iVrYT.arff',
+    'php7KLval.arff',
+    'php8Mz7BG.arff',
+    'phpelnJ6y.arff',
+    'phpOJxGL9.arff',
+    'puma32H.arff',
+    'puma8NH.arff',
+    'qsar-biodeg.arff',
+    'seismic-bumps.arff',
+    'space_ga.arff',
+    'spambase.arff',
+    'wilt.arff',
+    'wind.arff'
+]
+
 
 def meta_features_process(modelFiles, file_prefix, iteration, dataset):
     """
@@ -103,12 +139,6 @@ def drl_run_sb(dataset_arff, modelFiles):
     NUM_ITERATIONS = 20
     '''step 1: init'''
     exp_id = int(round(time.time() % 1000000, 0))
-    # file_prefix = str(exp_id) + "_" + dataset_arff[:-5] + "_"
-    # subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "init", dataset_arff, file_prefix, str(exp_id)])
-    # subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "iteration",
-    #                  file_prefix, str(-2), str(0), str(exp_id)])
-    # score_ds_f, instance_batch_f, rewards, meta_f = meta_features_process(modelFiles, file_prefix, 0, dataset_arff)
-
     ''' RL '''
     # env = DummyVecEnv([lambda: CoMetEnv(dataset_arff, exp_id, modelFiles, meta_f)])
     env = DummyVecEnv([lambda: CoMetEnv(dataset_arff, exp_id, modelFiles)])
@@ -116,18 +146,8 @@ def drl_run_sb(dataset_arff, modelFiles):
     # model = PPO2(MlpPolicy, env, verbose=1, learning_rate=0.01)
     # model = A2C(MlpPolicy, env, verbose=1)
     model = DQN(d_MlpPolicy, env, verbose=1, batch_size=1, exploration_fraction=0.8)
-
-    model.learn(total_timesteps=NUM_ITERATIONS)
-
-    '''
-    obs = env.reset()
-    for i in range(1, NUM_ITERATIONS):
-        action, _states = model.predict(obs)
-        # print("action: {}".format(action))
-        # obs, rewards, done, info = env.step(action)
-        obs, rewards, done, info = env.step(action)
-        env.render()
-    '''
+    sys.stdout.write("Start learning RL")
+    model.learn(total_timesteps=1500)
     model_name = "dqn_{}".format('_'.join(dataset_arff).replace(".arff", ""))
     # model_name = "ppo_{}".format(dataset_arff[:-5])
     model.save(model_name)
@@ -163,6 +183,7 @@ def drl_run_test_dataset(dataset, modelFiles, trained_model):
 
 
 def drl_run_keras(dataset_arff, modelFiles):
+    pass
     '''
     ValueError: Error when checking input: expected dense_input to have 3 dimensions
         , but got array with shape (1, 1, 1, 1296, 2232)
@@ -170,6 +191,7 @@ def drl_run_keras(dataset_arff, modelFiles):
     :param dataset_arff:
     :param modelFiles:
     :return:
+    '''
     '''
     # Get the environment and extract the number of actions.
     exp_id = int(round(time.time() % 1000000, 0))
@@ -209,16 +231,16 @@ def drl_run_keras(dataset_arff, modelFiles):
 
     model_name = 'dqn_{}_weights.h5f'.format('_'.join(dataset_arff).replace(".arff", ""))
     dqn.save_weights(model_name, overwrite=True)
-
-    #Sarsa
     '''
+    '''
+    #Sarsa
     policy = BoltzmannQPolicy()
     sarsa = SARSAAgent(model=model, nb_actions=nb_actions, nb_steps_warmup=10, policy=policy)
     sarsa.compile(tf.keras.optimizers.Adam(lr=1e-3), metrics=['mae'])
     sarsa.fit(env, nb_steps=50000, visualize=False, verbose=2)
     
-    '''
     return model_name
+    '''
 
 
 def run_cotrain_iterations(dataset_arff="german_credit.arff"):
@@ -268,23 +290,30 @@ def run_cotrain_iterations(dataset_arff="german_credit.arff"):
 
 
 if __name__ == "__main__":
+    # ToDO:
+    #  1. Create the Active-learning request for the Java API
+    #  2. Create an action space to support the active learning selection (consider change the DQN)
+    #  3. Write the experiments results to file
+    #  4. Create a comparison to CoMet/original co-training with the objects of the first iteration
+    #  5. Adjust the code to run on the server
+
     ''' Files '''
-    # modelFiles = '/data/home/zaksg/co-train/cotrain-v2/model-files/'
-    # modelFiles = '/Users/guyz/Documents/CoTrainingVerticalEnsemble - gilad/model files/'
-    modelFiles = r"C:\Users\guyz\Documents\CoTrainingVerticalEnsemble\meta_model\model_file_testing"
+    # modelFiles = r"C:\Users\guyz\Documents\CoTrainingVerticalEnsemble\meta_model\model_file_testing"
+    modelFiles = "/data/home/zaksg/co-train/cotrain-v2/drl-co/model_files"
     ''' Datasets '''
-    dataset_arff_train = ["german_credit.arff", "contraceptive.arff", "ionosphere.arff"]
-    # dataset_arff_train = ["german_credit.arff"]
+    # dataset_arff_train = ["german_credit.arff", "contraceptive.arff", "ionosphere.arff"]
+    dataset_arff_train = DATASET_LIST
     dataset_arff_test = ["cardiography_new.arff"]
 
     ''' Run '''
 
     ## stable-baseline env
     trained_model_name = drl_run_sb(dataset_arff_train, modelFiles)
-    drl_run_test_dataset(dataset_arff_test, modelFiles, trained_model_name)
+    # drl_run_test_dataset(dataset_arff_test, modelFiles, trained_model_name)
 
     ## Keras-rl
     # trained_model_name = drl_run_keras(dataset_arff_train, modelFiles)
 
-    ## CoMet
+    ## Original co training + meta features extraction
     # run_cotrain_iterations(dataset_arff_train)
+

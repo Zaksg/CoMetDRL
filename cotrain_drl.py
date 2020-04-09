@@ -35,7 +35,20 @@ import keras.backend as K
 # general_folder = '/data/home/zaksg/co-train/cotrain-v2/'
 general_folder = '/data/home/zaksg/co-train/cotrain-v2/drl-co'
 warnings.simplefilter(action='ignore', category=FutureWarning)
-DATASET_LIST = [
+DATASET_LIST_SUB = [
+    'abalone.arff',
+    'ailerons.arff',
+    'contraceptive.arff',
+    'fri_c2_1000_25.arff',
+    'german_credit.arff',
+    'ozone-level-8hr.arff',
+    'puma8NH.arff',
+    'seismic-bumps.arff',
+    'space_ga.arff',
+    'spambase.arff'
+]
+
+DATASET_LIST_FULL = [
     'abalone.arff',
     'ailerons.arff',
     'cardiography_new.arff',
@@ -297,22 +310,38 @@ if __name__ == "__main__":
     #  4. Create a comparison to CoMet/original co-training with the objects of the first iteration
     #  5. Adjust the code to run on the server
 
+    # TYPE can be: train, test, full-run
+    TYPE = "train"
+
     ''' Files '''
     # modelFiles = r"C:\Users\guyz\Documents\CoTrainingVerticalEnsemble\meta_model\model_file_testing"
     modelFiles = "/data/home/zaksg/co-train/cotrain-v2/drl-co/model_files"
+
     ''' Datasets '''
+
+    ## train datasets
     # dataset_arff_train = ["german_credit.arff", "contraceptive.arff", "ionosphere.arff"]
-    dataset_arff_train = DATASET_LIST
-    dataset_arff_test = ["cardiography_new.arff"]
+    dataset_arff_train = DATASET_LIST_SUB
+    # dataset_arff_train = DATASET_LIST_FULL
+
+    ## test datasets
+    test_dataset_list = []
+    if len(sys.argv) > 1:
+        test_dataset_list.append(sys.argv[1])
+    else:
+        test_dataset_list.append("cardiography_new.arff")
+    dataset_arff_test = test_dataset_list
 
     ''' Run '''
+    if TYPE == "train":
+        trained_model_name = drl_run_sb(dataset_arff_train, modelFiles)
+    elif TYPE == "test":
+        trained_model_name = r"C:\Users\guyz\Documents\CoTrainingVerticalEnsemble\CoMetDRL\dqn_german_credit_contraceptive_ionosphere.zip"
+        drl_run_test_dataset(dataset_arff_test, modelFiles, trained_model_name)
+    else:
+        trained_model_name = drl_run_sb(dataset_arff_train, modelFiles)
+        drl_run_test_dataset(dataset_arff_test, modelFiles, trained_model_name)
 
-    ## stable-baseline env
-    trained_model_name = drl_run_sb(dataset_arff_train, modelFiles)
-    # drl_run_test_dataset(dataset_arff_test, modelFiles, trained_model_name)
-
-    ## Keras-rl
-    # trained_model_name = drl_run_keras(dataset_arff_train, modelFiles)
 
     ## Original co training + meta features extraction
     # run_cotrain_iterations(dataset_arff_train)

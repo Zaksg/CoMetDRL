@@ -11,7 +11,8 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 MAX_AUC_SCORE = 10000
 ITERATIONS_PER_DATASET = 10
-BATCH_CANDIDATES = 1296
+# BATCH_CANDIDATES = 1296
+BATCH_CANDIDATES = 625
 EPSILON = 0.05
 RUNS_PER_DATASET = 5
 
@@ -55,7 +56,7 @@ class CoMetEnv(gym.Env):
         self.action_space = spaces.Discrete(BATCH_CANDIDATES)
         # self.action_space = spaces.MultiDiscrete(nvec=[BATCH_CANDIDATES, 2]) # For active learning
 
-        # 1296 batches and 2232 meta-features per batch
+        # 625 / 1296 batches and 2232 meta-features per batch
         self.observation_space = spaces.Box(
             low=-exp_id, high=exp_id, shape=(BATCH_CANDIDATES, len(self.df_col_list)), dtype=np.float16)
 
@@ -105,7 +106,7 @@ class CoMetEnv(gym.Env):
             act_type = -1
         self._take_action(act, act_type)
         obs, rewards = self._next_observation()
-        current_auc = 100 * rewards[rewards['batch_id'] == self.selected_batch_id]['afterBatchAuc'].values[0]
+        current_auc = MAX_AUC_SCORE * rewards[rewards['batch_id'] == self.selected_batch_id]['afterBatchAuc'].values[0]
         if self.iteration <= 1:
             # self.reward = current_auc
             self.prev_auc = current_auc

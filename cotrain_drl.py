@@ -16,6 +16,7 @@ from stable_baselines.deepq.policies import MlpPolicy as d_MlpPolicy
 from stable_baselines.common.policies import MlpPolicy
 from stable_baselines.common.vec_env import DummyVecEnv
 from stable_baselines import PPO2, DQN, A2C
+from stable_baselines.common.callbacks import CheckpointCallback, EveryNTimesteps
 # from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
 
 '''
@@ -152,17 +153,22 @@ def drl_run_sb(dataset_arff, modelFiles):
     NUM_ITERATIONS = 20
     '''step 1: init'''
     exp_id = int(round(time.time() % 1000000, 0))
+
     ''' RL '''
-    # env = DummyVecEnv([lambda: CoMetEnv(dataset_arff, exp_id, modelFiles, meta_f)])
+    checkpoint_on_event = CheckpointCallback(save_freq=1, save_path='./logs/')
+    event_callback = EveryNTimesteps(n_steps=40, callback=checkpoint_on_event)
+
     env = DummyVecEnv([lambda: CoMetEnv(dataset_arff, exp_id, modelFiles)])
 
     # model = PPO2(MlpPolicy, env, verbose=1, learning_rate=0.01)
     # model = A2C(MlpPolicy, env, verbose=1)
-    model = DQN(d_MlpPolicy, env, verbose=1, batch_size=1, exploration_fraction=0.8)
-    sys.stdout.write("Start learning RL")
-    model.learn(total_timesteps=1500)
+    model = DQN(d_MlpPolicy, env, verbose=1, batch_size=1, exploration_fraction=0.6)
+
+    model.learn(total_timesteps=len(dataset_arff) * 10 * 5, callback=event_callback)
+
     model_name = "dqn_{}".format('_'.join(dataset_arff).replace(".arff", ""))
     # model_name = "ppo_{}".format(dataset_arff[:-5])
+
     model.save(model_name)
     env.close()
     return model_name
@@ -303,13 +309,9 @@ def run_cotrain_iterations(dataset_arff="german_credit.arff"):
 
 
 if __name__ == "__main__":
-    # ToDO:
-    #  1. Create the Active-learning request for the Java API
-    #  2. Create an action space to support the active learning selection (consider change the DQN)
-    #  3. Write the experiments results to file
-    #  4. Create a comparison to CoMet/original co-training with the objects of the first iteration
-    #  5. Adjust the code to run on the server
-
+    """
+        Args: None or [1] TYPE, [2] Dataset
+    """
     # TYPE can be: train, test, full-run
     TYPE = "train"
 
@@ -327,7 +329,12 @@ if __name__ == "__main__":
     ## test datasets
     test_dataset_list = []
     if len(sys.argv) > 1:
-        test_dataset_list.append(sys.argv[1])
+        if sys.argv[1] == "test":
+            print("Starting test")
+            TYPE = "test"
+        elif sys.argv[1] == "run":
+            TYPE = "run"
+        test_dataset_list.append(sys.argv[2])
     else:
         test_dataset_list.append("cardiography_new.arff")
     dataset_arff_test = test_dataset_list

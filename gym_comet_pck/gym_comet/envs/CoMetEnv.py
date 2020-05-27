@@ -16,6 +16,8 @@ BATCH_CANDIDATES = 625
 EPSILON = 0.05
 RUNS_PER_DATASET = 5
 
+# consider: in subprocess.call: shell = True
+
 class CoMetEnv(gym.Env):
     metadata = {'render.modes': ['human']}
 
@@ -57,8 +59,11 @@ class CoMetEnv(gym.Env):
         # self.action_space = spaces.MultiDiscrete(nvec=[BATCH_CANDIDATES, 2]) # For active learning
 
         # 625 / 1296 batches and 2232 meta-features per batch
-        self.observation_space = spaces.Box(
-            low=-exp_id, high=exp_id, shape=(BATCH_CANDIDATES, len(self.df_col_list)), dtype=np.float16)
+        high = np.inf
+        low = -high
+        # self.observation_space = spaces.Box(low=-exp_id, high=exp_id, shape=(BATCH_CANDIDATES, len(self.df_col_list)), dtype=np.float16)
+        self.observation_space = spaces.Box(low=low, high=high,
+            shape=(BATCH_CANDIDATES, len(self.df_col_list)), dtype=np.float16)
 
     def _next_observation(self):
         print("iteration: {}, selected batch: {}".format(self.iteration, self.selected_batch_id))

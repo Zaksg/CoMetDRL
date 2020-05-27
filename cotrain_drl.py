@@ -84,6 +84,53 @@ DATASET_LIST_FULL = [
     'wind.arff'
 ]
 
+DATASET_GROUP_1 = [
+    'abalone.arff',
+    'ailerons.arff',
+    'cpu_act.arff',
+    'delta_elevators.arff',
+    'kdd_JapaneseVowels.arff',
+    'puma32H.arff',
+    'space_ga.arff',
+    'wind.arff'
+]
+
+DATASET_GROUP_2 = [
+    'fri_c0_1000_50.arff',
+    'ionosphere.arff',
+    'kr-vs-kp.arff',
+    'mfeat-karhunen.arff',
+    'ozone-level-8hr.arff',
+    'qsar-biodeg.arff',
+    'spambase.arff',
+    'phpelnJ6y.arff'
+]
+
+DATASET_GROUP_3 = [
+    'php7KLval.arff',
+    'php0iVrYT.arff',
+    'contraceptive.arff',
+    'diabetes.arff',
+    'fri_c2_1000_10.arff',
+    'fri_c2_1000_25.arff',
+    'german_credit.arff',
+    'phpOJxGL9.arff'
+]
+
+DATASET_GROUP_4 = [
+    'kc2.arff',
+    'puma8NH.arff',
+    'seismic-bumps.arff',
+    'cardiography_new.arff',
+    'mammography.arff',
+    'page-blocks_new.arff',
+    'php8Mz7BG.arff',
+    'wilt.arff'
+]
+
+problematic_ds = [
+    'ionosphere.arff'
+]
 
 def meta_features_process(modelFiles, file_prefix, iteration, dataset):
     """
@@ -96,7 +143,8 @@ def meta_features_process(modelFiles, file_prefix, iteration, dataset):
         states = batch + instances meta-features
         rewards = AUC after add the batch
     """
-    dataset_meta_features_folder = r'C:\Users\guyz\Documents\CoTrainingVerticalEnsemble\CoMetDRL'
+    # dataset_meta_features_folder = r'C:\Users\guyz\Documents\CoTrainingVerticalEnsemble\CoMetDRL'
+    dataset_meta_features_folder = modelFiles
 
     '''states'''
     batch_meta_features = meta_model.loadBatchMetaData('{}\{}{}_Batches_Meta_Data.csv'
@@ -149,24 +197,25 @@ def set_test_auc(dataset_arff, modelFiles, file_prefix):
     auc_df.to_csv('{}{}_exp_full_auc.csv'.format(modelFiles, file_prefix))
 
 
-def drl_run_sb(dataset_arff, modelFiles):
+def drl_run_sb(dataset_arff, modelFiles, model_name=None):
     NUM_ITERATIONS = 20
     '''step 1: init'''
     exp_id = int(round(time.time() % 1000000, 0))
+    if not model_name:
+        model_name='_'.join(dataset_arff).replace(".arff", "")
 
     ''' RL '''
-    checkpoint_on_event = CheckpointCallback(save_freq=1, save_path='./logs/')
+    checkpoint_on_event = CheckpointCallback(save_freq=1, save_path='./logs/{}'.format(model_name))
     event_callback = EveryNTimesteps(n_steps=40, callback=checkpoint_on_event)
 
     env = DummyVecEnv([lambda: CoMetEnv(dataset_arff, exp_id, modelFiles)])
 
     # model = PPO2(MlpPolicy, env, verbose=1, learning_rate=0.01)
     # model = A2C(MlpPolicy, env, verbose=1)
-    model = DQN(d_MlpPolicy, env, verbose=1, batch_size=1, exploration_fraction=0.6)
+    model = DQN(d_MlpPolicy, env, verbose=1, batch_size=1, exploration_fraction=0.8)
 
-    model.learn(total_timesteps=len(dataset_arff) * 10 * 5, callback=event_callback)
-
-    model_name = "dqn_{}".format('_'.join(dataset_arff).replace(".arff", ""))
+    model.learn(total_timesteps=len(dataset_arff) * 12 * 5, callback=event_callback)
+    model_name = "dqn_{}".format(model_name)
     # model_name = "ppo_{}".format(dataset_arff[:-5])
 
     model.save(model_name)
@@ -175,7 +224,7 @@ def drl_run_sb(dataset_arff, modelFiles):
 
 
 def drl_run_test_dataset(dataset, modelFiles, trained_model):
-    NUM_ITERATIONS = 20
+    NUM_ITERATIONS = len(dataset) * 5 * 11
 
     model = DQN.load(trained_model)
     # model = PPO2.load(trained_model)
@@ -183,21 +232,18 @@ def drl_run_test_dataset(dataset, modelFiles, trained_model):
     print("model loaded")
     '''step 1: init'''
     exp_id = int(round(time.time() % 1000000, 0))
-    # file_prefix = str(exp_id) + "_" + dataset[:-5] + "_"
-    # subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "init", dataset, file_prefix, str(exp_id)])
-    # subprocess.call(['java', '-jar', 'CoTrainingVerticalEnsembleV2.jar', "iteration",
-    #                  file_prefix, str(-2), str(0), str(exp_id)])
-    # score_ds_f, instance_batch_f, rewards, meta_f = meta_features_process(modelFiles, file_prefix, 0, dataset)
 
     ''' RL '''
-    # env = DummyVecEnv([lambda: CoMetEnv(dataset, exp_id, modelFiles, meta_f)])
     env = DummyVecEnv([lambda: CoMetEnv(dataset, exp_id, modelFiles)])
     model.set_env(env)
     # model.learn(total_timesteps=NUM_ITERATIONS)
     obs = env.reset()
-    for i in range(1, NUM_ITERATIONS):
+    done = False
+    i = 0
+    while not done and i < NUM_ITERATIONS:
         action, _states = model.predict(obs)
         obs, rewards, done, info = env.step(action)
+        i += 1
         env.render()
 
 
@@ -313,6 +359,7 @@ if __name__ == "__main__":
         Args: None or [1] TYPE, [2] Dataset
     """
     # TYPE can be: train, test, full-run
+    # TYPE = "test"
     TYPE = "train"
 
     ''' Files '''
@@ -323,27 +370,54 @@ if __name__ == "__main__":
 
     ## train datasets
     # dataset_arff_train = ["german_credit.arff", "contraceptive.arff", "ionosphere.arff"]
-    dataset_arff_train = DATASET_LIST_SUB
-    # dataset_arff_train = DATASET_LIST_FULL
+    # dataset_arff_train = DATASET_LIST_SUB
+    dataset_arff_train = DATASET_LIST_FULL
 
     ## test datasets
     test_dataset_list = []
+    trained_model_name = 'dqn_0.8_exploration_sub_ds_list.zip'
+
     if len(sys.argv) > 1:
         if sys.argv[1] == "test":
             print("Starting test")
             TYPE = "test"
         elif sys.argv[1] == "run":
             TYPE = "run"
-        test_dataset_list.append(sys.argv[2])
+        elif sys.argv[1] == "train":
+            TYPE = "train"
+        if sys.argv[2] == "sub_list":
+            test_dataset_list = DATASET_LIST_SUB
+        elif sys.argv[2] == "1":
+            test_dataset_list = DATASET_GROUP_1
+            trained_model_name = 'dqn_1.zip'
+        elif sys.argv[2] == "2":
+            test_dataset_list = DATASET_GROUP_2
+            trained_model_name = 'dqn_2.zip'
+        elif sys.argv[2] == "3":
+            test_dataset_list = DATASET_GROUP_3
+            trained_model_name = 'dqn_3.zip'
+        elif sys.argv[2] == "4":
+            test_dataset_list = DATASET_GROUP_4
+            trained_model_name = 'dqn_4.zip'
+        else:
+            test_dataset_list.append(sys.argv[2])
     else:
         test_dataset_list.append("cardiography_new.arff")
-    dataset_arff_test = test_dataset_list
+    # index of test list
+    if len(sys.argv) > 3:
+        dataset_arff_test = [test_dataset_list[int(sys.argv[3])]]
+    else:
+        dataset_arff_test = test_dataset_list
 
     ''' Run '''
     if TYPE == "train":
-        trained_model_name = drl_run_sb(dataset_arff_train, modelFiles)
+        trained_model_name = drl_run_sb(list(set(dataset_arff_train) - set(test_dataset_list) - set(problematic_ds)),
+                                        modelFiles, sys.argv[2])
     elif TYPE == "test":
-        trained_model_name = r"C:\Users\guyz\Documents\CoTrainingVerticalEnsemble\CoMetDRL\dqn_german_credit_contraceptive_ionosphere.zip"
+        print("model: {}".format(trained_model_name))
+        print("ds: {}".format(dataset_arff_test))
+        # trained_model_name = 'dqn_0.6_exploration_sub_ds_list.zip'
+        # trained_model_name = 'dqn_0.8_exploration_sub_ds_list.zip'
         drl_run_test_dataset(dataset_arff_test, modelFiles, trained_model_name)
     else:
         trained_model_name = drl_run_sb(dataset_arff_train, modelFiles)
